@@ -1,0 +1,17 @@
+name: Convert Resume DOCX to HTML
+
+on:
+  push:
+    branches:
+      - docx-conversion
+    paths:
+      - "resume.docx"
+      - ".github/workflows/convert-resume.yml"
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
