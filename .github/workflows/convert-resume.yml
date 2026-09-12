@@ -6,6 +6,7 @@ on:
       - docx-conversion
     paths:
       - "resume.docx"
+      - "resume.css"
       - ".github/workflows/convert-resume.yml"
 
 jobs:
@@ -16,17 +17,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Pandoc
+      - name: Install LibreOffice
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc
+          sudo apt-get install -y libreoffice
 
       - name: Convert resume.docx to HTML
         run: |
           mkdir -p site
-          pandoc resume.docx \
-            --standalone \
-            --output=site/index.html
+          libreoffice --headless \
+            --convert-to html \
+            --outdir site \
+            resume.docx
+
+      - name: Rename converted file to index.html
+        run: |
+          mv site/resume.html site/index.html
+
+      - name: Copy CSS to website
+        run: |
+          cp resume.css site/resume.css
+
+      - name: Add CSS stylesheet to converted HTML
+        run: |
+          sed -i 's#</head>#<link rel="stylesheet" href="resume.css">\n</head>#' site/index.html
 
       - name: Deploy converted resume to Azure development site
         uses: Azure/static-web-apps-deploy@v1
