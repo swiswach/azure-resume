@@ -19,68 +19,61 @@ def pt_to_px(points):
     return round(points * 96 / 72, 2)
 
 
-def twips_to_px(twips):
-    if twips is None:
-        return None
-    return round(twips / 20 * 96 / 72, 2)
-
-
-def paragraph_alignment(paragraph):
-    alignment = paragraph.alignment
-
-    if alignment == WD_ALIGN_PARAGRAPH.CENTER:
+def get_alignment(paragraph):
+    if paragraph.alignment == WD_ALIGN_PARAGRAPH.CENTER:
         return "center"
-    elif alignment == WD_ALIGN_PARAGRAPH.RIGHT:
+    if paragraph.alignment == WD_ALIGN_PARAGRAPH.RIGHT:
         return "right"
-    elif alignment == WD_ALIGN_PARAGRAPH.JUSTIFY:
+    if paragraph.alignment == WD_ALIGN_PARAGRAPH.JUSTIFY:
         return "justify"
     return "left"
 
 
-def get_paragraph_spacing(paragraph):
+def get_paragraph_style(paragraph):
     fmt = paragraph.paragraph_format
-
     styles = []
 
-    # Alignment
-    styles.append(f"text-align: {paragraph_alignment(paragraph)}")
+    styles.append(f"text-align: {get_alignment(paragraph)}")
 
-    # Space before
+    # Only reproduce spacing if Word explicitly defines it.
     if fmt.space_before is not None:
-        px = pt_to_px(fmt.space_before.pt)
-        styles.append(f"margin-top: {px}px")
+        styles.append(
+            f"margin-top: {pt_to_px(fmt.space_before.pt)}px"
+        )
     else:
         styles.append("margin-top: 0")
 
-    # Space after
     if fmt.space_after is not None:
-        px = pt_to_px(fmt.space_after.pt)
-        styles.append(f"margin-bottom: {px}px")
+        styles.append(
+            f"margin-bottom: {pt_to_px(fmt.space_after.pt)}px"
+        )
     else:
         styles.append("margin-bottom: 0")
 
-    # Line spacing
+    # Word line spacing
     if fmt.line_spacing is not None:
         if hasattr(fmt.line_spacing, "pt"):
-            px = pt_to_px(fmt.line_spacing.pt)
-            styles.append(f"line-height: {px}px")
+            styles.append(
+                f"line-height: {pt_to_px(fmt.line_spacing.pt)}px"
+            )
         elif isinstance(fmt.line_spacing, (int, float)):
             styles.append(f"line-height: {fmt.line_spacing}")
 
-    # Left indent
+    # Word indentation
     if fmt.left_indent is not None:
-        px = pt_to_px(fmt.left_indent.pt)
-        styles.append(f"margin-left: {px}px")
+        styles.append(
+            f"margin-left: {pt_to_px(fmt.left_indent.pt)}px"
+        )
 
-    # Right indent
     if fmt.right_indent is not None:
-        px = pt_to_px(fmt.right_indent.pt)
-        styles.append(f"margin-right: {px}px")
+        styles.append(
+            f"margin-right: {pt_to_px(fmt.right_indent.pt)}px"
+        )
 
-    # First line / hanging indent
     if fmt.first_line_indent is not None:
-        px = pt_to_px(fmt.first_line_indent.pt)
-        styles.append(f"text-indent: {px}px")
+        styles.append(
+            f"text-indent: {pt_to_px(fmt.first_line_indent.pt)}px"
+        )
 
     return "; ".join(styles)
 
@@ -88,14 +81,15 @@ def get_paragraph_spacing(paragraph):
 def get_run_style(run):
     styles = []
 
-    # Font size
     if run.font.size is not None:
-        px = pt_to_px(run.font.size.pt)
-        styles.append(f"font-size: {px}px")
+        styles.append(
+            f"font-size: {pt_to_px(run.font.size.pt)}px"
+        )
 
-    # Font name
     if run.font.name:
-        styles.append(f"font-family: '{escape(run.font.name)}'")
+        styles.append(
+            f"font-family: '{escape(run.font.name)}'"
+        )
 
     return "; ".join(styles)
 
@@ -139,15 +133,19 @@ def render_hyperlink(hyperlink, paragraph):
 
     try:
         url = paragraph.part.rels[rel_id].target_ref
-        return f'<a href="{escape(url)}" target="_blank">{text}</a>'
+        return (
+            f'<a href="{escape(url)}" '
+            f'target="_blank">{text}</a>'
+        )
     except KeyError:
         return text
 
 
-def render_paragraph_contents(paragraph):
+def render_contents(paragraph):
     output = []
 
     for child in paragraph._p:
+
         if child.tag == qn("w:r"):
             for run in paragraph.runs:
                 if run._r is child:
@@ -155,19 +153,23 @@ def render_paragraph_contents(paragraph):
                     break
 
         elif child.tag == qn("w:hyperlink"):
-            output.append(render_hyperlink(child, paragraph))
+            output.append(
+                render_hyperlink(child, paragraph)
+            )
 
     return "".join(output)
 
 
 def is_list_paragraph(paragraph):
-    style_name = paragraph.style.name if paragraph.style else ""
-
-    if style_name == "List Paragraph":
+    if paragraph.style and paragraph.style.name == "List Paragraph":
         return True
 
     pPr = paragraph._p.pPr
-    if pPr is not None and pPr.numPr is not None:
+
+    if (
+        pPr is not None
+        and pPr.numPr is not None
+    ):
         return True
 
     return False
@@ -177,13 +179,20 @@ html = []
 
 html.append("""<!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
 <title>Donald Gardner Resume</title>
 
 <style>
-html, body {
+
+html,
+body {
     margin: 0;
     padding: 0;
 }
@@ -192,72 +201,136 @@ body {
     max-width: 850px;
     margin-left: auto;
     margin-right: auto;
-    padding: 30px 25px;
-    font-family: Arial, Helvetica, sans-serif;
+    padding: 18px 20px;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
 }
 
 p {
     padding: 0;
 }
 
+.blank-line {
+    height: 1em;
+    margin: 0;
+    padding: 0;
+}
+
 ul {
+    margin-top: 0;
+    margin-bottom: 0;
     padding-left: 28px;
 }
 
 li {
+    margin-top: 0;
+    margin-bottom: 0;
     padding: 0;
 }
 
 a {
     color: inherit;
 }
+
 </style>
+
 </head>
+
 <body>
 """)
 
+
 in_list = False
 
-for paragraph in doc.paragraphs:
-    text = paragraph.text
 
-    # Preserve blank paragraphs from Word
-    if not text.strip():
+for paragraph in doc.paragraphs:
+
+    text = paragraph.text.strip()
+
+    #
+    # BLANK PARAGRAPH
+    #
+    # Word contains real blank paragraphs.
+    # Reproduce each one as exactly one blank line.
+    #
+    if not text:
+
         if in_list:
             html.append("</ul>")
             in_list = False
 
-        spacing = get_paragraph_spacing(paragraph)
-        html.append(f'<p style="{spacing}">&nbsp;</p>')
+        html.append(
+            '<div class="blank-line"></div>'
+        )
+
         continue
 
-    contents = render_paragraph_contents(paragraph)
-    spacing = get_paragraph_spacing(paragraph)
 
+    contents = render_contents(paragraph)
+
+    paragraph_style = get_paragraph_style(paragraph)
+
+
+    #
+    # BULLETED/LIST PARAGRAPH
+    #
     if is_list_paragraph(paragraph):
+
         if not in_list:
             html.append("<ul>")
             in_list = True
 
-        html.append(f'<li style="{spacing}">{contents}</li>')
+        html.append(
+            f'<li style="{paragraph_style}">'
+            f'{contents}'
+            f'</li>'
+        )
+
         continue
 
+
+    #
+    # END ACTIVE LIST
+    #
     if in_list:
         html.append("</ul>")
         in_list = False
 
-    html.append(f'<p style="{spacing}">{contents}</p>')
+
+    #
+    # ORDINARY WORD PARAGRAPH
+    #
+    html.append(
+        f'<p style="{paragraph_style}">'
+        f'{contents}'
+        f'</p>'
+    )
 
 
 if in_list:
     html.append("</ul>")
+
 
 html.append("""
 </body>
 </html>
 """)
 
-with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-    f.write("\n".join(html))
 
-print(f"Created {OUTPUT_FILE}")
+with open(
+    OUTPUT_FILE,
+    "w",
+    encoding="utf-8"
+) as f:
+
+    f.write(
+        "\n".join(html)
+    )
+
+
+print(
+    f"Created {OUTPUT_FILE}"
+)
