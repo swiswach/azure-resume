@@ -29,13 +29,28 @@ def get_alignment(paragraph):
     return "left"
 
 
+def paragraph_has_small_caps(paragraph):
+    """
+    Identify section titles by their Word formatting,
+    rather than by the actual words in the title.
+    """
+    for run in paragraph.runs:
+        if run.text.strip() and run.font.small_caps:
+            return True
+
+    return False
+
+
 def get_paragraph_style(paragraph):
     fmt = paragraph.paragraph_format
     styles = []
 
-    styles.append(f"text-align: {get_alignment(paragraph)}")
+    # Copy Word paragraph alignment
+    styles.append(
+        f"text-align: {get_alignment(paragraph)}"
+    )
 
-    # Only reproduce spacing if Word explicitly defines it.
+    # Copy Word spacing before paragraph
     if fmt.space_before is not None:
         styles.append(
             f"margin-top: {pt_to_px(fmt.space_before.pt)}px"
@@ -43,6 +58,7 @@ def get_paragraph_style(paragraph):
     else:
         styles.append("margin-top: 0")
 
+    # Copy Word spacing after paragraph initially
     if fmt.space_after is not None:
         styles.append(
             f"margin-bottom: {pt_to_px(fmt.space_after.pt)}px"
@@ -50,29 +66,60 @@ def get_paragraph_style(paragraph):
     else:
         styles.append("margin-bottom: 0")
 
-    # Word line spacing
-    if fmt.line_spacing is not None:
-        if hasattr(fmt.line_spacing, "pt"):
-            styles.append(
-                f"line-height: {pt_to_px(fmt.line_spacing.pt)}px"
-            )
-        elif isinstance(fmt.line_spacing, (int, float)):
-            styles.append(f"line-height: {fmt.line_spacing}")
+    # --------------------------------------------------
+    # SECTION TITLE RULE
+    #
+    # Centered + Small Caps means a section title.
+    #
+    # The title itself is single spaced.
+    # The space AFTER the title is 1.5 lines.
+    # --------------------------------------------------
 
-    # Word indentation
+    if (
+        paragraph.alignment == WD_ALIGN_PARAGRAPH.CENTER
+        and paragraph_has_small_caps(paragraph)
+    ):
+        styles.append("line-height: 1")
+        styles.append("margin-bottom: 1.5em")
+
+    else:
+        # For all other paragraphs, preserve Word's
+        # line-spacing information.
+        if fmt.line_spacing is not None:
+
+            if hasattr(fmt.line_spacing, "pt"):
+                styles.append(
+                    f"line-height: "
+                    f"{pt_to_px(fmt.line_spacing.pt)}px"
+                )
+
+            elif isinstance(
+                fmt.line_spacing,
+                (int, float)
+            ):
+                styles.append(
+                    f"line-height: {fmt.line_spacing}"
+                )
+
+    # Copy Word left indentation
     if fmt.left_indent is not None:
         styles.append(
-            f"margin-left: {pt_to_px(fmt.left_indent.pt)}px"
+            f"margin-left: "
+            f"{pt_to_px(fmt.left_indent.pt)}px"
         )
 
+    # Copy Word right indentation
     if fmt.right_indent is not None:
         styles.append(
-            f"margin-right: {pt_to_px(fmt.right_indent.pt)}px"
+            f"margin-right: "
+            f"{pt_to_px(fmt.right_indent.pt)}px"
         )
 
+    # Copy Word first-line/hanging indentation
     if fmt.first_line_indent is not None:
         styles.append(
-            f"text-indent: {pt_to_px(fmt.first_line_indent.pt)}px"
+            f"text-indent: "
+            f"{pt_to_px(fmt.first_line_indent.pt)}px"
         )
 
     return "; ".join(styles)
@@ -81,14 +128,22 @@ def get_paragraph_style(paragraph):
 def get_run_style(run):
     styles = []
 
+    # Copy Word font size
     if run.font.size is not None:
         styles.append(
             f"font-size: {pt_to_px(run.font.size.pt)}px"
         )
 
+    # Copy Word font
     if run.font.name:
         styles.append(
             f"font-family: '{escape(run.font.name)}'"
+        )
+
+    # Copy Word Small Caps
+    if run.font.small_caps:
+        styles.append(
+            "font-variant: small-caps"
         )
 
     return "; ".join(styles)
@@ -103,14 +158,21 @@ def render_run(run):
     style = get_run_style(run)
 
     if style:
-        text = f'<span style="{style}">{text}</span>'
+        text = (
+            f'<span style="{style}">'
+            f'{text}'
+            f'</span>'
+        )
 
+    # Copy Word bold
     if run.bold:
         text = f"<strong>{text}</strong>"
 
+    # Copy Word italics
     if run.italic:
         text = f"<em>{text}</em>"
 
+    # Copy Word underline
     if run.underline:
         text = f"<u>{text}</u>"
 
@@ -121,7 +183,10 @@ def render_hyperlink(hyperlink, paragraph):
     text = ""
 
     for child in hyperlink.iter():
-        if child.tag == qn("w:t") and child.text:
+        if (
+            child.tag == qn("w:t")
+            and child.text
+        ):
             text += child.text
 
     text = escape(text)
@@ -132,11 +197,17 @@ def render_hyperlink(hyperlink, paragraph):
         return text
 
     try:
-        url = paragraph.part.rels[rel_id].target_ref
+        url = paragraph.part.rels[
+            rel_id
+        ].target_ref
+
         return (
             f'<a href="{escape(url)}" '
-            f'target="_blank">{text}</a>'
+            f'target="_blank">'
+            f'{text}'
+            f'</a>'
         )
+
     except KeyError:
         return text
 
@@ -147,21 +218,33 @@ def render_contents(paragraph):
     for child in paragraph._p:
 
         if child.tag == qn("w:r"):
+
             for run in paragraph.runs:
                 if run._r is child:
-                    output.append(render_run(run))
+                    output.append(
+                        render_run(run)
+                    )
                     break
 
         elif child.tag == qn("w:hyperlink"):
+
             output.append(
-                render_hyperlink(child, paragraph)
+                render_hyperlink(
+                    child,
+                    paragraph
+                )
             )
 
     return "".join(output)
 
 
 def is_list_paragraph(paragraph):
-    if paragraph.style and paragraph.style.name == "List Paragraph":
+
+    if (
+        paragraph.style
+        and paragraph.style.name
+        == "List Paragraph"
+    ):
         return True
 
     pPr = paragraph._p.pPr
@@ -250,12 +333,11 @@ for paragraph in doc.paragraphs:
 
     text = paragraph.text.strip()
 
-    #
-    # BLANK PARAGRAPH
-    #
-    # Word contains real blank paragraphs.
-    # Reproduce each one as exactly one blank line.
-    #
+    # -----------------------------------------------
+    # BLANK WORD PARAGRAPH
+    # Preserve it as one blank line.
+    # -----------------------------------------------
+
     if not text:
 
         if in_list:
@@ -271,12 +353,15 @@ for paragraph in doc.paragraphs:
 
     contents = render_contents(paragraph)
 
-    paragraph_style = get_paragraph_style(paragraph)
+    paragraph_style = get_paragraph_style(
+        paragraph
+    )
 
 
-    #
-    # BULLETED/LIST PARAGRAPH
-    #
+    # -----------------------------------------------
+    # WORD BULLET / LIST
+    # -----------------------------------------------
+
     if is_list_paragraph(paragraph):
 
         if not in_list:
@@ -292,17 +377,16 @@ for paragraph in doc.paragraphs:
         continue
 
 
-    #
-    # END ACTIVE LIST
-    #
+    # Close list before next normal paragraph
     if in_list:
         html.append("</ul>")
         in_list = False
 
 
-    #
-    # ORDINARY WORD PARAGRAPH
-    #
+    # -----------------------------------------------
+    # NORMAL WORD PARAGRAPH
+    # -----------------------------------------------
+
     html.append(
         f'<p style="{paragraph_style}">'
         f'{contents}'
