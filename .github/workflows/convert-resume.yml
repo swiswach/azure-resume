@@ -3,7 +3,7 @@ name: Convert Resume DOCX and Deploy to Development
 on:
   push:
     branches:
-      - docx-conversion
+      - main
 
 jobs:
   convert-and-deploy:
